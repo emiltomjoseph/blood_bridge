@@ -1,0 +1,179 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  DONOR
+  HOSPITAL
+  ADMIN
+}
+
+enum BloodGroup {
+  A_POS
+  A_NEG
+  B_POS
+  B_NEG
+  AB_POS
+  AB_NEG
+  O_POS
+  O_NEG
+}
+
+enum AvailabilityStatus {
+  AVAILABLE
+  UNAVAILABLE
+  PAUSED
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum UrgencyLevel {
+  NORMAL
+  URGENT
+  CRITICAL
+}
+
+enum RequestStatus {
+  OPEN
+  MATCHING
+  PARTIALLY_FULFILLED
+  FULFILLED
+  EXPIRED
+  CANCELLED
+}
+
+enum MatchStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+model User {
+  id        String   @id // Supabase Auth UID
+  email     String   @unique
+  name      String
+  phone     String?
+  role      UserRole
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  donor    Donor?
+  hospital Hospital?
+
+  @@map("users")
+}
+
+model Donor {
+  id                 String             @id @default(uuid())
+  userId             String             @unique @map("user_id")
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bloodGroup         BloodGroup         @map("blood_group")
+  dateOfBirth        DateTime?          @map("date_of_birth")
+  lastDonationDate   DateTime?          @map("last_donation_date")
+  latitude           Float
+  longitude          Float
+  availabilityStatus AvailabilityStatus @default(AVAILABLE) @map("availability_status")
+  verificationStatus VerificationStatus @default(PENDING) @map("verification_status")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  matches         Match[]
+  donationRecords DonationRecord[]
+
+  @@index([bloodGroup, availabilityStatus, verificationStatus])
+  @@index([latitude, longitude])
+  @@map("donors")
+}
+
+model Hospital {
+  id                 String             @id @default(uuid())
+  userId             String             @unique @map("user_id")
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name               String
+  address            String
+  district           String
+  latitude           Float
+  longitude          Float
+  verificationStatus VerificationStatus @default(PENDING) @map("verification_status")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  bloodRequests   BloodRequest[]
+  donationRecords DonationRecord[]
+
+  @@index([district])
+  @@map("hospitals")
+}
+
+model BloodRequest {
+  id            String        @id @default(uuid())
+  hospitalId    String        @map("hospital_id")
+  hospital      Hospital      @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  bloodGroup    BloodGroup    @map("blood_group")
+  unitsRequired Int           @map("units_required")
+  urgency       UrgencyLevel  @default(URGENT)
+  latitude      Float
+  longitude     Float
+  requiredBy    DateTime      @map("required_by")
+  status        RequestStatus @default(OPEN)
+  notes         String?
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  matches         Match[]
+  donationRecords DonationRecord[]
+
+  @@index([status, bloodGroup])
+  @@index([hospitalId])
+  @@map("blood_requests")
+}
+
+model Match {
+  id          String      @id @default(uuid())
+  requestId   String      @map("request_id")
+  request     BloodRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  donorId     String      @map("donor_id")
+  donor       Donor       @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  distanceKm  Float       @map("distance_km")
+  matchScore  Int         @map("match_score")
+  status      MatchStatus @default(PENDING)
+  notifiedAt  DateTime?   @map("notified_at")
+  respondedAt DateTime?   @map("responded_at")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  @@unique([requestId, donorId])
+  @@index([requestId])
+  @@index([donorId])
+  @@index([status])
+  @@map("matches")
+}
+
+model DonationRecord {
+  id         String       @id @default(uuid())
+  donorId    String       @map("donor_id")
+  donor      Donor        @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  requestId  String       @map("request_id")
+  request    BloodRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  hospitalId String       @map("hospital_id")
+  hospital   Hospital     @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  units      Int
+  donatedAt  DateTime     @default(now()) @map("donated_at")
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  @@index([donorId])
+  @@index([hospitalId])
+  @@map("donation_records")
+}
