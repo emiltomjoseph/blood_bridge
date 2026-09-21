@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: bloodbridge-backend
+    env: node
+    buildCommand: npm run build --workspace=backend
+    startCommand: npm run start --workspace=backend
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
